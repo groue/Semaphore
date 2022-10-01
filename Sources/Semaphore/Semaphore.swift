@@ -25,7 +25,7 @@ import Foundation
 /// contexts through use of a traditional counting semaphore.
 ///
 /// Unlike `DispatchSemaphore`,  ``Semaphore`` does not block any thread.
-/// Instead, it blocks Swift concurrency tasks.
+/// Instead, it suspends Swift concurrency tasks.
 ///
 /// ## Topics
 ///
@@ -50,7 +50,7 @@ public class Semaphore {
     
     /// This lock would be required even if ``Semaphore`` were made an actor,
     /// because `withUnsafeContinuation` suspends before it runs its closure
-    /// argument. By making ``Semaphore`` a plain class, we can exposes a
+    /// argument. Also, by making ``Semaphore`` a plain class, we can expose a
     /// non-async ``signal()`` method.
     private let lock = NSLock()
     
@@ -66,7 +66,8 @@ public class Semaphore {
     /// Waits for, or decrements, a semaphore.
     ///
     /// Decrement the counting semaphore. If the resulting value is less than
-    /// zero, this function waits for a signal to occur before returning.
+    /// zero, this function suspends the current task until a signal occurs.
+    /// Otherwise, no suspension happens.
     public func wait() async {
         lock.lock()
         
@@ -87,9 +88,9 @@ public class Semaphore {
     /// Signals (increments) a semaphore.
     ///
     /// Increment the counting semaphore. If the previous value was less than
-    /// zero, this function wakes a task currently waiting in ``wait()``.
+    /// zero, this function resumes a task currently suspended in ``wait()``.
     ///
-    /// - returns This function returns true if a task is woken. Otherwise,
+    /// - returns This function returns true if a task is resumed. Otherwise,
     ///   false is returned.
     @discardableResult
     public func signal() -> Bool {

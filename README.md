@@ -2,20 +2,20 @@
 
 `Semaphore` is an object that controls access to a resource across multiple execution contexts through use of a traditional counting semaphore.
 
-Unlike [`DispatchSemaphore`](https://developer.apple.com/documentation/dispatch/dispatchsemaphore), `Semaphore` does not block any thread. Instead, it blocks Swift concurrency tasks.
+Unlike [`DispatchSemaphore`](https://developer.apple.com/documentation/dispatch/dispatchsemaphore), `Semaphore` does not block any thread. Instead, it suspends Swift concurrency tasks.
 
 ### Usage
 
 ```swift
 let semaphore = Semaphore(value: 0)
 
-// Block a task until the semaphore is greater than zero
 Task {
+    // Suspends the task until a signal occurs.
     await semaphore.wait()
     await doSomething()
 }
 
-// Wakes a blocked task
+// Resumes the suspended task.
 semaphore.signal()
 ```
 
@@ -24,6 +24,7 @@ Semaphores also provide a way to restrict the access to a limited resource. The 
 ```swift
 let semaphore = Semaphore(value: 1)
 
+// There is at most one task that is downloading and saving at any given time
 func downloadAndSave() async throws {
     await semaphore.wait()
     let value = try await downloadValue()

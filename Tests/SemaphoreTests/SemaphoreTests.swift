@@ -4,7 +4,7 @@ import XCTest
 
 final class SemaphoreTests: XCTestCase {
     
-    func testSignalWithoutWaitingTasks() async {
+    func testSignalWithoutSuspendedTasks() async {
         // Check DispatchSemaphore behavior
         do {
             do {
@@ -41,12 +41,12 @@ final class SemaphoreTests: XCTestCase {
         }
     }
     
-    func test_signal_returns_whether_it_wakes_a_waiting_task_or_not() async throws {
+    func test_signal_returns_whether_it_resumes_a_suspended_task_or_not() async throws {
         let delay: UInt64 = 500_000_000
         
         // Check DispatchSemaphore behavior
         do {
-            // Given a waiting thread
+            // Given a thread waiting for the semaphore
             let sem = DispatchSemaphore(value: 0)
             Thread { sem.wait() }.start()
             try await Task.sleep(nanoseconds: delay)
@@ -59,19 +59,19 @@ final class SemaphoreTests: XCTestCase {
         
         // Test that Semaphore behaves identically
         do {
-            // Given a waiting task
+            // Given a task suspended on the semaphore
             let sem = Semaphore(value: 0)
             Task { await sem.wait() }
             try await Task.sleep(nanoseconds: delay)
             
-            // First signal wakes the waiting task
+            // First signal resumes the suspended task
             XCTAssertTrue(sem.signal())
-            // Second signal does not wake any taks
+            // Second signal does not resume any task
             XCTAssertFalse(sem.signal())
         }
     }
     
-    func test_wait_blocks_on_zero_semaphore_until_signal() async {
+    func test_wait_suspends_on_zero_semaphore_until_signal() async {
         // Check DispatchSemaphore behavior
         do {
             // Given a zero semaphore
@@ -103,7 +103,7 @@ final class SemaphoreTests: XCTestCase {
             let ex2 = expectation(description: "woken")
             
             // When a task waits for this semaphore,
-            // Then the task is initially blocked.
+            // Then the task is initially suspended.
             Task {
                 await sem.wait()
                 ex1.fulfill()
@@ -111,16 +111,17 @@ final class SemaphoreTests: XCTestCase {
             }
             wait(for: [ex1], timeout: 0.5)
             
-            // When a signal occurs, then the waiting task is woken.
+            // When a signal occurs, then the suspended task is resumed.
             sem.signal()
             wait(for: [ex2], timeout: 0.5)
         }
     }
     
     func test_semaphore_as_a_resource_limiter() async {
-        ///
+        /// An actor that counts the maximum number of concurrent executions of
+        /// the `run()` method.
         actor Runner {
-            var count = 0
+            private var count = 0
             var maxCount = 0
             
             func run() async {
@@ -134,8 +135,10 @@ final class SemaphoreTests: XCTestCase {
         for count in 1...maxCount {
             let runner = Runner()
             let sem = Semaphore(value: count)
+            
+            // Spawn many concurrent tasks
             await withTaskGroup(of: Void.self) { group in
-                for _ in 0..<maxCount {
+                for _ in 0..<(maxCount * 2) {
                     group.addTask {
                         await sem.wait()
                         await runner.run()
@@ -143,6 +146,9 @@ final class SemaphoreTests: XCTestCase {
                     }
                 }
             }
+            
+            // The maximum number of concurrent executions of the `run()`
+            // method must be identical to the initial value of the semaphore.
             let maxCount = await runner.maxCount
             XCTAssertEqual(maxCount, count)
         }
