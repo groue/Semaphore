@@ -2,7 +2,7 @@
 
 `Semaphore` is an object that controls access to a resource across multiple execution contexts through use of a traditional counting semaphore.
 
-Unlike [`DispatchSemaphore`](https://developer.apple.com/documentation/dispatch/dispatchsemaphore), `Semaphore` does not block any thread. Instead, it suspends Swift concurrency tasks.
+Unlike [`DispatchSemaphore`], `Semaphore` does not block any thread. Instead, it suspends Swift concurrency tasks.
 
 ### Usage
 
@@ -21,16 +21,6 @@ semaphore.signal()
 
 The `wait()` method throws `CancellationError` if the task is cancelled while waiting for a signal.
 
-Semaphores also provide a way to restrict the access to a limited resource. The sample code below makes sure that `downloadAndSave()` waits until the previous call has completed:
+For a nice introduction to semaphores, see [The Beauty of Semaphores in Swift 🚦](https://medium.com/@roykronenfeld/semaphores-in-swift-e296ea80f860). The article discusses [`DispatchSemaphore`], but it can easily be ported to Swift concurrency: see the [demo playground](Demo/SemaphorePlayground.playground/Contents.swift) of this package. 
 
-```swift
-let semaphore = Semaphore(value: 1)
-
-// There is at most one task that is downloading and saving at any given time
-func downloadAndSave() async throws {
-    try await semaphore.wait()
-    let value = try await downloadValue()
-    try await save(value)
-    semaphore.signal()
-}
-```
+[`DispatchSemaphore`]: https://developer.apple.com/documentation/dispatch/dispatchsemaphore
