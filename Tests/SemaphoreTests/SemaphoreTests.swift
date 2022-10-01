@@ -255,39 +255,4 @@ final class SemaphoreTests: XCTestCase {
             XCTAssertEqual(maxCount, count)
         }
     }
-    
-    func test_run() async {
-        /// An actor that counts the maximum number of concurrent executions of
-        /// the `run()` method.
-        actor Runner {
-            private var count = 0
-            var maxCount = 0
-            
-            func run() async {
-                count += 1
-                maxCount = max(maxCount, count)
-                try! await Task.sleep(nanoseconds: 100_000_000)
-                count -= 1
-            }
-        }
-        
-        let runner = Runner()
-        let sem = Semaphore(value: 1)
-        
-        // Spawn many concurrent tasks
-        await withThrowingTaskGroup(of: Void.self) { group in
-            for _ in 0..<10 {
-                group.addTask {
-                    try await sem.run {
-                        await runner.run()
-                    }
-                }
-            }
-        }
-        
-        // The maximum number of concurrent executions of the `run()`
-        // method must be identical to the initial value of the semaphore.
-        let maxCount = await runner.maxCount
-        XCTAssertEqual(maxCount, 1)
-    }
 }

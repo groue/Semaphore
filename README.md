@@ -34,14 +34,3 @@ func downloadAndSave() async throws {
     semaphore.signal()
 }
 ```
-
-When you frequently wrap some asynchronous code between `wait()` and `signal()`, you may enjoy the `run` convenience method, which is equivalent:
-
-```swift
-func downloadAndSave() async throws {
-    await semaphore.run {
-        let value = try await downloadValue()
-        try await save(value)
-    }
-}
-```

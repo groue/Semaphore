@@ -161,29 +161,4 @@ public final class Semaphore {
         }
         return false
     }
-    
-    /// Waits, run an async function, and signals.
-    ///
-    /// The two sample codes below are equivalent:
-    ///
-    /// ```swift
-    /// let value = try await semaphore.run {
-    ///     await getValue()
-    /// }
-    ///
-    /// try await semaphore.wait()
-    /// let value = await getValue()
-    /// semaphore.signal()
-    /// ```
-    ///
-    /// - Parameter execute: The closure to execute between `wait()`
-    ///   and `signal()`.
-    /// - Throws: If the task is canceled before a signal occurs, this function
-    ///   throws `CancellationError`. Otherwise, it throws the error thrown by
-    ///   the `execute` closure.
-    public func run<T>(_ execute: @escaping () async throws -> T) async throws -> T {
-        try await wait()
-        defer { signal() }
-        return try await execute()
-    }
 }
