@@ -61,7 +61,7 @@ final class SemaphoreTests: XCTestCase {
         do {
             // Given a task suspended on the semaphore
             let sem = Semaphore(value: 0)
-            Task { await sem.wait() }
+            Task { try await sem.wait() }
             try await Task.sleep(nanoseconds: delay)
             
             // First signal resumes the suspended task
@@ -76,17 +76,18 @@ final class SemaphoreTests: XCTestCase {
         do {
             // Given a zero semaphore
             let sem = DispatchSemaphore(value: 0)
+            
+            // When a thread waits for this semaphore,
             let ex1 = expectation(description: "wait")
             ex1.isInverted = true
             let ex2 = expectation(description: "woken")
-            
-            // When a thread waits for this semaphore,
-            // Then the thread is initially blocked.
             Thread {
                 sem.wait()
                 ex1.fulfill()
                 ex2.fulfill()
             }.start()
+            
+            // Then the thread is initially blocked.
             wait(for: [ex1], timeout: 0.5)
             
             // When a signal occurs, then the waiting thread is woken.
@@ -98,17 +99,18 @@ final class SemaphoreTests: XCTestCase {
         do {
             // Given a zero semaphore
             let sem = Semaphore(value: 0)
+            
+            // When a task waits for this semaphore,
             let ex1 = expectation(description: "wait")
             ex1.isInverted = true
             let ex2 = expectation(description: "woken")
-            
-            // When a task waits for this semaphore,
-            // Then the task is initially suspended.
             Task {
-                await sem.wait()
+                try await sem.wait()
                 ex1.fulfill()
                 ex2.fulfill()
             }
+            
+            // Then the task is initially suspended.
             wait(for: [ex1], timeout: 0.5)
             
             // When a signal occurs, then the suspended task is resumed.
@@ -117,6 +119,106 @@ final class SemaphoreTests: XCTestCase {
         }
     }
     
+    func test_cancellation_while_suspended_throws_CancellationError() async throws {
+        let sem = Semaphore(value: 0)
+        let ex = expectation(description: "cancellation")
+        let task = Task {
+            do {
+                try await sem.wait()
+                XCTFail("Expected CancellationError")
+            } catch is CancellationError {
+            } catch {
+                XCTFail("Unexpected error")
+            }
+            ex.fulfill()
+        }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        task.cancel()
+        wait(for: [ex], timeout: 1)
+    }
+    
+    func test_cancellation_before_suspension_throws_CancellationError() async throws {
+        let sem = Semaphore(value: 0)
+        let ex = expectation(description: "cancellation")
+        let task = Task {
+            // Uncancellable delay
+            await withUnsafeContinuation { continuation in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    continuation.resume()
+                }
+            }
+            do {
+                try await sem.wait()
+                XCTFail("Expected CancellationError")
+            } catch is CancellationError {
+            } catch {
+                XCTFail("Unexpected error")
+            }
+            ex.fulfill()
+        }
+        task.cancel()
+        wait(for: [ex], timeout: 5)
+    }
+    
+    func test_that_cancellation_while_suspended_increments_the_semaphore() async throws {
+        // Given a task cancelled while suspended on a semaphore,
+        let sem = Semaphore(value: 0)
+        let task = Task {
+            try await sem.wait()
+        }
+        try await Task.sleep(nanoseconds: 100_000_000)
+        task.cancel()
+        
+        // When a task waits for this semaphore,
+        let ex1 = expectation(description: "wait")
+        ex1.isInverted = true
+        let ex2 = expectation(description: "woken")
+        Task {
+            try await sem.wait()
+            ex1.fulfill()
+            ex2.fulfill()
+        }
+        
+        // Then the task is initially suspended.
+        wait(for: [ex1], timeout: 0.5)
+        
+        // When a signal occurs, then the suspended task is resumed.
+        sem.signal()
+        wait(for: [ex2], timeout: 0.5)
+    }
+    
+    func test_that_cancellation_before_suspension_increments_the_semaphore() async throws {
+        // Given a task cancelled before it waits on a semaphore,
+        let sem = Semaphore(value: 0)
+        let task = Task {
+            // Uncancellable delay
+            await withUnsafeContinuation { continuation in
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                    continuation.resume()
+                }
+            }
+            try await sem.wait()
+        }
+        task.cancel()
+        
+        // When a task waits for this semaphore,
+        let ex1 = expectation(description: "wait")
+        ex1.isInverted = true
+        let ex2 = expectation(description: "woken")
+        Task {
+            try await sem.wait()
+            ex1.fulfill()
+            ex2.fulfill()
+        }
+        
+        // Then the task is initially suspended.
+        wait(for: [ex1], timeout: 0.5)
+        
+        // When a signal occurs, then the suspended task is resumed.
+        sem.signal()
+        wait(for: [ex2], timeout: 0.5)
+    }
+
     func test_semaphore_as_a_resource_limiter() async {
         /// An actor that counts the maximum number of concurrent executions of
         /// the `run()` method.
@@ -137,10 +239,10 @@ final class SemaphoreTests: XCTestCase {
             let sem = Semaphore(value: count)
             
             // Spawn many concurrent tasks
-            await withTaskGroup(of: Void.self) { group in
+            await withThrowingTaskGroup(of: Void.self) { group in
                 for _ in 0..<(maxCount * 2) {
                     group.addTask {
-                        await sem.wait()
+                        try await sem.wait()
                         await runner.run()
                         sem.signal()
                     }
