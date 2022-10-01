@@ -63,6 +63,10 @@ public class Semaphore {
         self.value = value
     }
     
+    deinit {
+        precondition(continuations.isEmpty, "Semaphore is deallocated while some task(s) are suspended waiting for a signal.")
+    }
+    
     /// Waits for, or decrements, a semaphore.
     ///
     /// Decrement the counting semaphore. If the resulting value is less than
