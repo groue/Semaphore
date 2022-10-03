@@ -20,7 +20,7 @@ do {
     await withThrowingTaskGroup(of: Void.self) { group in
         group.addTask {
             print("Kid 1 - wait")
-            try await semaphore.wait()
+            await semaphore.wait()
             print("Kid 1 - wait finished")
             try await Task.sleep(nanoseconds: 1_000_000_000) // Kid 1 playing with iPad
             semaphore.signal()
@@ -28,7 +28,7 @@ do {
         }
         group.addTask {
             print("Kid 2 - wait")
-            try await semaphore.wait()
+            await semaphore.wait()
             print("Kid 2 - wait finished")
             try await Task.sleep(nanoseconds: 1_000_000_000) // Kid 2 playing with iPad
             semaphore.signal()
@@ -36,7 +36,7 @@ do {
         }
         group.addTask {
             print("Kid 3 - wait")
-            try await semaphore.wait()
+            await semaphore.wait()
             print("Kid 3 - wait finished")
             try await Task.sleep(nanoseconds: 1_000_000_000) // Kid 3 playing with iPad
             semaphore.signal()
@@ -84,7 +84,7 @@ do {
         for i in 0..<15 {
             group.addTask {
                 let songNumber = i + 1
-                try await semaphore.wait()
+                await semaphore.wait()
                 print("Downloading song", songNumber)
                 try await Task.sleep(nanoseconds: 2_000_000_000) // Download take ~2 sec each
                 print("Downloaded song", songNumber)

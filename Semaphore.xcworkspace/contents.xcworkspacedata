@@ -2,7 +2,7 @@
 <Workspace
    version = "1.0">
    <FileRef
-      location = "group:/Users/groue/Documents/git/Semaphore/Demo/SemaphorePlayground.playground">
+      location = "group:Demo/SemaphorePlayground.playground">
    </FileRef>
    <FileRef
       location = "group:">
