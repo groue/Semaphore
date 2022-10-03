@@ -40,7 +40,7 @@ import Foundation
 /// ### Blocking on the Semaphore
 ///
 /// - ``wait()``
-/// - ``run(_:)``
+/// - ``waitUntilTaskCancellation()``
 public final class Semaphore {
     /// The semaphore value.
     private var value: Int
@@ -48,10 +48,20 @@ public final class Semaphore {
     private class Suspension {
         enum State {
             case pending
-            case suspended(UnsafeContinuation<Void, Error>)
+            case suspendedUntilTaskCancellation(UnsafeContinuation<Void, Error>)
+            case suspended(UnsafeContinuation<Void, Never>)
             case cancelled
         }
-        var state = State.pending
+        
+        var state: State
+        
+        init() {
+            state = .pending
+        }
+        
+        init(continuation: UnsafeContinuation<Void, Never>) {
+            state = .suspended(continuation)
+        }
     }
     
     private var suspensions: [Suspension] = []
@@ -81,15 +91,42 @@ public final class Semaphore {
     /// Decrement the counting semaphore. If the resulting value is less than
     /// zero, this function suspends the current task until a signal occurs,
     /// without blocking the underlying thread. Otherwise, no suspension happens.
-    ///
-    /// - Throws: If the task is canceled before a signal occurs, this function
-    ///   throws `CancellationError`.
-    public func wait() async throws {
+    public func wait() async {
         lock.lock()
         
         value -= 1
         if value >= 0 {
             lock.unlock()
+            return
+        }
+        
+        await withUnsafeContinuation { continuation in
+            // Register the continuation that `signal` will resume.
+            //
+            // The first suspended task will be the first task resumed by `signal`.
+            // This is not intended to be a strong fifo guarantee, but just
+            // an attempt at some fairness.
+            suspensions.insert(Suspension(continuation: continuation), at: 0)
+            lock.unlock()
+        }
+    }
+    
+    /// Waits for, or decrements, a semaphore.
+    ///
+    /// Decrement the counting semaphore. If the resulting value is less than
+    /// zero, this function suspends the current task until a signal occurs,
+    /// without blocking the underlying thread. Otherwise, no suspension happens.
+    ///
+    /// - Throws: If the task is canceled before a signal occurs, this function
+    ///   throws `CancellationError`.
+    public func waitUntilTaskCancellation() async throws {
+        lock.lock()
+        
+        value -= 1
+        if value >= 0 {
+            lock.unlock()
+            // All code paths check for cancellation
+            try Task.checkCancellation()
             return
         }
         
@@ -111,7 +148,7 @@ public final class Semaphore {
                     // The first suspended task will be the first task resumed by `signal`.
                     // This is not intended to be a strong fifo guarantee, but just
                     // an attempt at some fairness.
-                    suspension.state = .suspended(continuation)
+                    suspension.state = .suspendedUntilTaskCancellation(continuation)
                     suspensions.insert(suspension, at: 0)
                     lock.unlock()
                 }
@@ -131,7 +168,7 @@ public final class Semaphore {
                 suspensions.remove(at: index)
             }
             
-            if case let .suspended(continuation) = suspension.state {
+            if case let .suspendedUntilTaskCancellation(continuation) = suspension.state {
                 // Task is cancelled while suspended: resume with a CancellationError.
                 continuation.resume(throwing: CancellationError())
             } else {
@@ -155,10 +192,18 @@ public final class Semaphore {
         defer { lock.unlock() }
         
         value += 1
-        if case let .suspended(continuation) = suspensions.popLast()?.state {
+        
+        switch suspensions.popLast()?.state {
+        case let .suspendedUntilTaskCancellation(continuation):
             continuation.resume()
             return true
+        case let .suspended(continuation):
+            continuation.resume()
+            return true
+        default:
+            break
         }
+        
         return false
     }
 }

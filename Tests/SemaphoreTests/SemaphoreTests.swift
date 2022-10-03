@@ -61,7 +61,7 @@ final class SemaphoreTests: XCTestCase {
         do {
             // Given a task suspended on the semaphore
             let sem = Semaphore(value: 0)
-            Task { try await sem.wait() }
+            Task { await sem.wait() }
             try await Task.sleep(nanoseconds: delay)
             
             // First signal resumes the suspended task
@@ -105,7 +105,7 @@ final class SemaphoreTests: XCTestCase {
             ex1.isInverted = true
             let ex2 = expectation(description: "woken")
             Task {
-                try await sem.wait()
+                await sem.wait()
                 ex1.fulfill()
                 ex2.fulfill()
             }
@@ -124,7 +124,7 @@ final class SemaphoreTests: XCTestCase {
         let ex = expectation(description: "cancellation")
         let task = Task {
             do {
-                try await sem.wait()
+                try await sem.waitUntilTaskCancellation()
                 XCTFail("Expected CancellationError")
             } catch is CancellationError {
             } catch {
@@ -148,7 +148,7 @@ final class SemaphoreTests: XCTestCase {
                 }
             }
             do {
-                try await sem.wait()
+                try await sem.waitUntilTaskCancellation()
                 XCTFail("Expected CancellationError")
             } catch is CancellationError {
             } catch {
@@ -164,7 +164,7 @@ final class SemaphoreTests: XCTestCase {
         // Given a task cancelled while suspended on a semaphore,
         let sem = Semaphore(value: 0)
         let task = Task {
-            try await sem.wait()
+            try await sem.waitUntilTaskCancellation()
         }
         try await Task.sleep(nanoseconds: 100_000_000)
         task.cancel()
@@ -174,7 +174,7 @@ final class SemaphoreTests: XCTestCase {
         ex1.isInverted = true
         let ex2 = expectation(description: "woken")
         Task {
-            try await sem.wait()
+            await sem.wait()
             ex1.fulfill()
             ex2.fulfill()
         }
@@ -197,7 +197,7 @@ final class SemaphoreTests: XCTestCase {
                     continuation.resume()
                 }
             }
-            try await sem.wait()
+            try await sem.waitUntilTaskCancellation()
         }
         task.cancel()
         
@@ -206,7 +206,7 @@ final class SemaphoreTests: XCTestCase {
         ex1.isInverted = true
         let ex2 = expectation(description: "woken")
         Task {
-            try await sem.wait()
+            await sem.wait()
             ex1.fulfill()
             ex2.fulfill()
         }
@@ -242,7 +242,44 @@ final class SemaphoreTests: XCTestCase {
             await withThrowingTaskGroup(of: Void.self) { group in
                 for _ in 0..<(maxCount * 2) {
                     group.addTask {
-                        try await sem.wait()
+                        await sem.wait()
+                        await runner.run()
+                        sem.signal()
+                    }
+                }
+            }
+            
+            // The maximum number of concurrent executions of the `run()`
+            // method must be identical to the initial value of the semaphore.
+            let maxCount = await runner.maxCount
+            XCTAssertEqual(maxCount, count)
+        }
+    }
+    
+    func test_semaphore_as_a_resource_limiter_with_cancellation_support() async {
+        /// An actor that counts the maximum number of concurrent executions of
+        /// the `run()` method.
+        actor Runner {
+            private var count = 0
+            var maxCount = 0
+            
+            func run() async {
+                count += 1
+                maxCount = max(maxCount, count)
+                try! await Task.sleep(nanoseconds: 100_000_000)
+                count -= 1
+            }
+        }
+        let maxCount = 10
+        for count in 1...maxCount {
+            let runner = Runner()
+            let sem = Semaphore(value: count)
+            
+            // Spawn many concurrent tasks
+            await withThrowingTaskGroup(of: Void.self) { group in
+                for _ in 0..<(maxCount * 2) {
+                    group.addTask {
+                        try await sem.waitUntilTaskCancellation()
                         await runner.run()
                         sem.signal()
                     }
