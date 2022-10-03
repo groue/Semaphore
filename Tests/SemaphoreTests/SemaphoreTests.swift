@@ -124,7 +124,7 @@ final class SemaphoreTests: XCTestCase {
         let ex = expectation(description: "cancellation")
         let task = Task {
             do {
-                try await sem.waitUntilTaskCancellation()
+                try await sem.waitUnlessCancelled()
                 XCTFail("Expected CancellationError")
             } catch is CancellationError {
             } catch {
@@ -148,7 +148,7 @@ final class SemaphoreTests: XCTestCase {
                 }
             }
             do {
-                try await sem.waitUntilTaskCancellation()
+                try await sem.waitUnlessCancelled()
                 XCTFail("Expected CancellationError")
             } catch is CancellationError {
             } catch {
@@ -164,7 +164,7 @@ final class SemaphoreTests: XCTestCase {
         // Given a task cancelled while suspended on a semaphore,
         let sem = Semaphore(value: 0)
         let task = Task {
-            try await sem.waitUntilTaskCancellation()
+            try await sem.waitUnlessCancelled()
         }
         try await Task.sleep(nanoseconds: 100_000_000)
         task.cancel()
@@ -197,7 +197,7 @@ final class SemaphoreTests: XCTestCase {
                     continuation.resume()
                 }
             }
-            try await sem.waitUntilTaskCancellation()
+            try await sem.waitUnlessCancelled()
         }
         task.cancel()
         
@@ -279,7 +279,7 @@ final class SemaphoreTests: XCTestCase {
             await withThrowingTaskGroup(of: Void.self) { group in
                 for _ in 0..<(maxCount * 2) {
                     group.addTask {
-                        try await sem.waitUntilTaskCancellation()
+                        try await sem.waitUnlessCancelled()
                         await runner.run()
                         sem.signal()
                     }

@@ -37,19 +37,24 @@ import Foundation
 ///
 /// - ``signal()``
 ///
-/// ### Blocking on the Semaphore
+/// ### Waiting for the Semaphore
 ///
 /// - ``wait()``
-/// - ``waitUntilTaskCancellation()``
+/// - ``waitUnlessCancelled()``
 public final class Semaphore {
-    /// The semaphore value.
-    private var value: Int
-    
+    /// "Waiting for a signal" is easily said, but several possible states exist.
     private class Suspension {
         enum State {
+            /// Initial state. Next is suspended, or cancelled.
             case pending
-            case suspendedUntilTaskCancellation(UnsafeContinuation<Void, Error>)
+            
+            /// Waiting for a signal, with support for cancellation.
+            case suspendedUnlessCancelled(UnsafeContinuation<Void, Error>)
+            
+            /// Waiting for a signal, with no support for cancellation.
             case suspended(UnsafeContinuation<Void, Never>)
+            
+            /// Cancelled before we have started waiting.
             case cancelled
         }
         
@@ -64,14 +69,24 @@ public final class Semaphore {
         }
     }
     
+    // MARK: - Internal State
+    
+    /// The semaphore value.
+    private var value: Int
+    
+    /// As many elements as there are suspended tasks waiting for a signal.
+    /// We store `Suspension` instances instead of `UnsafeContinuation`, because
+    /// we support cancellation by removing `Suspension` instances from
+    /// this array.
     private var suspensions: [Suspension] = []
     
-    /// This lock would be required even if ``Semaphore`` were made an actor,
-    /// because `withUnsafeContinuation` suspends before it runs its closure
-    /// argument. Also, by making ``Semaphore`` a plain class, we can expose a
-    /// non-async ``signal()`` method. The lock is recursive in order to handle
-    /// cancellation (see the implementation of ``wait()``).
+    /// The lock that protects `value` and `suspensions`.
+    ///
+    /// It is recursive in order to handle cancellation (see the implementation
+    /// of ``waitUnlessCancelled()``).
     private let lock = NSRecursiveLock()
+    
+    // MARK: - Creating a Semaphore
     
     /// Creates a semaphore.
     ///
@@ -85,6 +100,8 @@ public final class Semaphore {
     deinit {
         precondition(suspensions.isEmpty, "Semaphore is deallocated while some task(s) are suspended waiting for a signal.")
     }
+    
+    // MARK: - Waiting for the Semaphore
     
     /// Waits for, or decrements, a semaphore.
     ///
@@ -119,7 +136,7 @@ public final class Semaphore {
     ///
     /// - Throws: If the task is canceled before a signal occurs, this function
     ///   throws `CancellationError`.
-    public func waitUntilTaskCancellation() async throws {
+    public func waitUnlessCancelled() async throws {
         lock.lock()
         
         value -= 1
@@ -148,7 +165,7 @@ public final class Semaphore {
                     // The first suspended task will be the first task resumed by `signal`.
                     // This is not intended to be a strong fifo guarantee, but just
                     // an attempt at some fairness.
-                    suspension.state = .suspendedUntilTaskCancellation(continuation)
+                    suspension.state = .suspendedUnlessCancelled(continuation)
                     suspensions.insert(suspension, at: 0)
                     lock.unlock()
                 }
@@ -168,7 +185,7 @@ public final class Semaphore {
                 suspensions.remove(at: index)
             }
             
-            if case let .suspendedUntilTaskCancellation(continuation) = suspension.state {
+            if case let .suspendedUnlessCancelled(continuation) = suspension.state {
                 // Task is cancelled while suspended: resume with a CancellationError.
                 continuation.resume(throwing: CancellationError())
             } else {
@@ -178,6 +195,8 @@ public final class Semaphore {
             }
         }
     }
+    
+    // MARK: - Signaling the Semaphore
     
     /// Signals (increments) a semaphore.
     ///
@@ -194,16 +213,14 @@ public final class Semaphore {
         value += 1
         
         switch suspensions.popLast()?.state {
-        case let .suspendedUntilTaskCancellation(continuation):
+        case let .suspendedUnlessCancelled(continuation):
             continuation.resume()
             return true
         case let .suspended(continuation):
             continuation.resume()
             return true
         default:
-            break
+            return false
         }
-        
-        return false
     }
 }

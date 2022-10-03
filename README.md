@@ -19,7 +19,7 @@ Task {
 semaphore.signal()
 ```
 
-The `wait()` method has a `waitUntilTaskCancellation()` variant that throws `CancellationError` if the task is canceled before a signal occurs.
+The `wait()` method has a `waitUnlessCancelled()` variant that throws `CancellationError` if the task is cancelled before a signal occurs.
 
 For a nice introduction to semaphores, see [The Beauty of Semaphores in Swift 🚦](https://medium.com/@roykronenfeld/semaphores-in-swift-e296ea80f860). The article discusses [`DispatchSemaphore`], but it can easily be ported to Swift concurrency: see the [demo playground](Demo/SemaphorePlayground.playground/Contents.swift) of this package. 
 
