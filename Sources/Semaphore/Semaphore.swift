@@ -84,7 +84,7 @@ public final class Semaphore {
     ///
     /// It is recursive in order to handle cancellation (see the implementation
     /// of ``waitUnlessCancelled()``).
-    private let lock = NSRecursiveLock()
+    private let _lock = NSRecursiveLock()
     
     // MARK: - Creating a Semaphore
     
@@ -101,6 +101,26 @@ public final class Semaphore {
         precondition(suspensions.isEmpty, "Semaphore is deallocated while some task(s) are suspended waiting for a signal.")
     }
     
+    // MARK: - Locking
+    //
+    // Swift concurrency is... unfinished. We really need to protect our inner
+    // state (`value` and `suspension`) across the calls to
+    // `withUnsafeContinuation`. Unfortunately, this method introduces a
+    // suspension point. So we need a lock. But the Swift compiler is never out
+    // of funny jokes:
+    //
+    // > Instance method 'lock' is unavailable from asynchronous contexts;
+    // > Use async-safe scoped locking instead; this is an error in Swift 6
+    //
+    // This is very immature, because we don't quite have any other solution.
+    // Maybe the authors of Swift concurrency will find it interesting
+    // eventually to provide 1. building blocks that 2. solve known problems
+    // and 3. back deploy. So far they're busy polishing something else.
+    //
+    // So let's just hide the lock and mute this stupid warning:
+    func lock() { _lock.lock() }
+    func unlock() { _lock.unlock() }
+    
     // MARK: - Waiting for the Semaphore
     
     /// Waits for, or decrements, a semaphore.
@@ -109,11 +129,11 @@ public final class Semaphore {
     /// zero, this function suspends the current task until a signal occurs,
     /// without blocking the underlying thread. Otherwise, no suspension happens.
     public func wait() async {
-        lock.lock()
+        lock()
         
         value -= 1
         if value >= 0 {
-            lock.unlock()
+            unlock()
             return
         }
         
@@ -124,7 +144,7 @@ public final class Semaphore {
             // This is not intended to be a strong fifo guarantee, but just
             // an attempt at some fairness.
             suspensions.insert(Suspension(continuation: continuation), at: 0)
-            lock.unlock()
+            unlock()
         }
     }
     
@@ -137,11 +157,11 @@ public final class Semaphore {
     /// - Throws: If the task is canceled before a signal occurs, this function
     ///   throws `CancellationError`.
     public func waitUnlessCancelled() async throws {
-        lock.lock()
+        lock()
         
         value -= 1
         if value >= 0 {
-            lock.unlock()
+            unlock()
             // All code paths check for cancellation
             try Task.checkCancellation()
             return
@@ -156,7 +176,7 @@ public final class Semaphore {
                 if case .cancelled = suspension.state {
                     // Current task was already cancelled when withTaskCancellationHandler
                     // was invoked.
-                    lock.unlock()
+                    unlock()
                     continuation.resume(throwing: CancellationError())
                 } else {
                     // Current task was not cancelled: register the continuation
@@ -167,7 +187,7 @@ public final class Semaphore {
                     // an attempt at some fairness.
                     suspension.state = .suspendedUnlessCancelled(continuation)
                     suspensions.insert(suspension, at: 0)
-                    lock.unlock()
+                    unlock()
                 }
             }
         } onCancel: {
@@ -175,9 +195,9 @@ public final class Semaphore {
             // the current task is cancelled), or call it later (if the task is
             // cancelled later). In the first case, we're still holding the lock,
             // waiting for the continuation. In the second case, we do not hold
-            // the lock. This is the reason why we use a recursive lock.
-            lock.lock()
-            defer { lock.unlock() }
+            // the  This is the reason why we use a recursive lock.
+            lock()
+            defer { unlock() }
             
             // We're no longer waiting for a signal
             value += 1
@@ -207,8 +227,8 @@ public final class Semaphore {
     ///   Otherwise, false is returned.
     @discardableResult
     public func signal() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
+        lock()
+        defer { unlock() }
         
         value += 1
         
