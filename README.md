@@ -6,6 +6,8 @@ Unlike [`DispatchSemaphore`], `Semaphore` does not block any thread. Instead, it
 
 ### Usage
 
+You can use a semaphore to suspend a task and resume it later:
+
 ```swift
 let semaphore = Semaphore(value: 0)
 
@@ -17,6 +19,23 @@ Task {
 
 // Resumes the suspended task.
 semaphore.signal()
+```
+
+You can use a semaphore in order to make sure an actor's methods can't run concurrently:
+
+```swift
+actor MyActor {
+    private let semaphore = Semaphore(value: 1)
+    
+    func serializedMethod() async {
+        // Makes sure no two tasks can execute self.serializedMethod() concurrently. 
+        await semaphore.wait()
+        defer { semaphore.signal() }
+        
+        await doSomething()
+        await doSomethingElse()
+    }
+}
 ```
 
 The `wait()` method has a `waitUnlessCancelled()` variant that throws `CancellationError` if the task is cancelled before a signal occurs.
