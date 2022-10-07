@@ -1,16 +1,14 @@
-# Semaphore
+# ``Semaphore``
 
-**A Synchronization Primitive for Swift Concurrency**
+A Synchronization Primitive for Swift Concurrency
 
-**Requirements**: iOS 13.0+ / macOS 10.15+ / tvOS 13.0+ / watchOS 6.0+ • Swift 5.7+ / Xcode 14+
-
----
+## Overview
 
 This package provides `AsyncSemaphore`, a [traditional counting semaphore](https://en.wikipedia.org/wiki/Semaphore_(programming)).
 
 Unlike [`DispatchSemaphore`], it does not block any thread. Instead, Swift concurrency tasks are suspended "awaiting" for the semaphore.
 
-### Usage
+## Usage
 
 You can use a semaphore to suspend a task and resume it later:
 
@@ -65,8 +63,8 @@ class Downloader {
 }
 ```
 
-You can see in the latest example that the `wait()` method has a `waitUnlessCancelled` variant that throws `CancellationError` if the task is cancelled before a signal occurs.
+You can see in the latest example that the ``AsyncSemaphore/wait()`` method has a ``AsyncSemaphore/waitUnlessCancelled()`` variant that throws `CancellationError` if the task is cancelled before a signal occurs.
 
-For a nice introduction to semaphores, see [The Beauty of Semaphores in Swift 🚦](https://medium.com/@roykronenfeld/semaphores-in-swift-e296ea80f860). The article discusses [`DispatchSemaphore`], but it can easily be ported to Swift concurrency: see the [demo playground](Demo/SemaphorePlayground.playground/Contents.swift) of this package. 
+For a nice introduction to semaphores, see [The Beauty of Semaphores in Swift 🚦](https://medium.com/@roykronenfeld/semaphores-in-swift-e296ea80f860).
 
 [`DispatchSemaphore`]: https://developer.apple.com/documentation/dispatch/dispatchsemaphore

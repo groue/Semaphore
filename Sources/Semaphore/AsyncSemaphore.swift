@@ -24,8 +24,8 @@ import Foundation
 /// An object that controls access to a resource across multiple execution
 /// contexts through use of a traditional counting semaphore.
 ///
-/// Unlike `DispatchSemaphore`,  ``AsyncSemaphore`` does not block any thread.
-/// Instead, it suspends Swift concurrency tasks.
+/// You increment a semaphore count by calling the ``signal()`` method, and
+/// decrement a semaphore count by calling ``wait()`` or one of its variants.
 ///
 /// ## Topics
 ///
