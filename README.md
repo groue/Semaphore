@@ -1,5 +1,9 @@
 # Semaphore
 
+**Requirements**: iOS 13.0+ / macOS 10.15+ / tvOS 13.0+ / watchOS 6.0+ • Swift 5.7+ / Xcode 14+
+
+---
+
 `AsyncSemaphore` is an object that controls access to a resource across multiple execution contexts through use of a traditional counting semaphore.
 
 Unlike [`DispatchSemaphore`], `AsyncSemaphore` does not block any thread. Instead, it suspends Swift concurrency tasks.
