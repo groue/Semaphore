@@ -41,7 +41,7 @@ import Foundation
 ///
 /// - ``wait()``
 /// - ``waitUnlessCancelled()``
-public final class AsyncSemaphore {
+public final class AsyncSemaphore: @unchecked Sendable {
     /// "Waiting for a signal" is easily said, but several possible states exist.
     private class Suspension {
         enum State {
