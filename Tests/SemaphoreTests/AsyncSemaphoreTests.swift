@@ -219,77 +219,179 @@ final class AsyncSemaphoreTests: XCTestCase {
         wait(for: [ex2], timeout: 0.5)
     }
     
-    func test_semaphore_as_a_resource_limiter() async {
-        /// An actor that counts the maximum number of concurrent executions of
-        /// the `run()` method.
+    // Test that semaphore can limit the number of concurrent executions of
+    // an actor method.
+    func test_semaphore_as_a_resource_limiter_on_actor_method() async {
+        /// An actor that limits the number of concurrent executions of
+        /// its `run()` method, and counts the effective number of
+        /// concurrent executions for testing purpose.
         actor Runner {
+            private let semaphore: AsyncSemaphore
             private var count = 0
-            var maxCount = 0
+            private(set) var effectiveMaxConcurrentRuns = 0
+            
+            init(maxConcurrentRuns: Int) {
+                semaphore = AsyncSemaphore(value: maxConcurrentRuns)
+            }
             
             func run() async {
+                await semaphore.wait()
+                defer { semaphore.signal()}
+                
                 count += 1
-                maxCount = max(maxCount, count)
+                effectiveMaxConcurrentRuns = max(effectiveMaxConcurrentRuns, count)
                 try! await Task.sleep(nanoseconds: 100_000_000)
                 count -= 1
             }
         }
-        let maxCount = 10
-        for count in 1...maxCount {
-            let runner = Runner()
-            let sem = AsyncSemaphore(value: count)
+        
+        for maxConcurrentRuns in 1...10 {
+            let runner = Runner(maxConcurrentRuns: maxConcurrentRuns)
             
             // Spawn many concurrent tasks
-            await withThrowingTaskGroup(of: Void.self) { group in
-                for _ in 0..<(maxCount * 2) {
+            await withTaskGroup(of: Void.self) { group in
+                for _ in 0..<20 {
                     group.addTask {
-                        await sem.wait()
                         await runner.run()
-                        sem.signal()
                     }
                 }
             }
             
-            // The maximum number of concurrent executions of the `run()`
-            // method must be identical to the initial value of the semaphore.
-            let maxCount = await runner.maxCount
-            XCTAssertEqual(maxCount, count)
+            let effectiveMaxConcurrentRuns = await runner.effectiveMaxConcurrentRuns
+            XCTAssertEqual(effectiveMaxConcurrentRuns, maxConcurrentRuns)
         }
     }
     
-    func test_semaphore_as_a_resource_limiter_with_cancellation_support() async {
-        /// An actor that counts the maximum number of concurrent executions of
-        /// the `run()` method.
-        actor Runner {
+    // Test that semaphore can limit the number of concurrent executions of
+    // an async method.
+    func test_semaphore_as_a_resource_limiter_on_async_method() async {
+        /// A class that limits the number of concurrent executions of
+        /// its `run()` method, and counts the effective number of
+        /// concurrent executions for testing purpose.
+        @MainActor
+        class Runner {
+            private let semaphore: AsyncSemaphore
             private var count = 0
-            var maxCount = 0
+            private(set) var effectiveMaxConcurrentRuns = 0
+            
+            init(maxConcurrentRuns: Int) {
+                semaphore = AsyncSemaphore(value: maxConcurrentRuns)
+            }
             
             func run() async {
+                await semaphore.wait()
+                defer { semaphore.signal()}
+                
                 count += 1
-                maxCount = max(maxCount, count)
+                effectiveMaxConcurrentRuns = max(effectiveMaxConcurrentRuns, count)
                 try! await Task.sleep(nanoseconds: 100_000_000)
                 count -= 1
             }
         }
-        let maxCount = 10
-        for count in 1...maxCount {
-            let runner = Runner()
-            let sem = AsyncSemaphore(value: count)
+        
+        for maxConcurrentRuns in 1...10 {
+            let runner = await Runner(maxConcurrentRuns: maxConcurrentRuns)
             
             // Spawn many concurrent tasks
-            await withThrowingTaskGroup(of: Void.self) { group in
-                for _ in 0..<(maxCount * 2) {
+            await withTaskGroup(of: Void.self) { group in
+                for _ in 0..<20 {
                     group.addTask {
-                        try await sem.waitUnlessCancelled()
                         await runner.run()
-                        sem.signal()
                     }
                 }
             }
             
-            // The maximum number of concurrent executions of the `run()`
-            // method must be identical to the initial value of the semaphore.
-            let maxCount = await runner.maxCount
-            XCTAssertEqual(maxCount, count)
+            let effectiveMaxConcurrentRuns = await runner.effectiveMaxConcurrentRuns
+            XCTAssertEqual(effectiveMaxConcurrentRuns, maxConcurrentRuns)
+        }
+    }
+    
+    // Test that semaphore can limit the number of concurrent executions of
+    // an async method, even when interactions with Swift concurrency runtime
+    // are (as much as possible) initiated from a single thread.
+    func test_semaphore_as_a_resource_limiter_on_single_thread() async {
+        /// A class that limits the number of concurrent executions of
+        /// its `run()` method, and counts the effective number of
+        /// concurrent executions for testing purpose.
+        @MainActor
+        class Runner {
+            private let semaphore: AsyncSemaphore
+            private var count = 0
+            private(set) var effectiveMaxConcurrentRuns = 0
+            
+            init(maxConcurrentRuns: Int) {
+                semaphore = AsyncSemaphore(value: maxConcurrentRuns)
+            }
+            
+            func run() async {
+                await semaphore.wait()
+                defer { semaphore.signal()}
+                
+                count += 1
+                effectiveMaxConcurrentRuns = max(effectiveMaxConcurrentRuns, count)
+                try! await Task.sleep(nanoseconds: 100_000_000)
+                count -= 1
+            }
+        }
+        
+        await Task { @MainActor in
+            let runner = Runner(maxConcurrentRuns: 3)
+            async let x0: Void = runner.run()
+            async let x1: Void = runner.run()
+            async let x2: Void = runner.run()
+            async let x3: Void = runner.run()
+            async let x4: Void = runner.run()
+            async let x5: Void = runner.run()
+            async let x6: Void = runner.run()
+            async let x7: Void = runner.run()
+            async let x8: Void = runner.run()
+            async let x9: Void = runner.run()
+            _ = await (x0, x1, x2, x3, x4, x5, x6, x7, x8, x9)
+            let effectiveMaxConcurrentRuns = runner.effectiveMaxConcurrentRuns
+            XCTAssertEqual(effectiveMaxConcurrentRuns, 3)
+        }.value
+    }
+    
+    // Test that semaphore can limit the number of concurrent executions of
+    // an actor method, even when cancellation support is enabled.
+    func test_semaphore_as_a_resource_limiter_on_actor_method_with_cancellation_support() async {
+        /// An actor that limits the number of concurrent executions of
+        /// its `run()` method, and counts the effective number of
+        /// concurrent executions for testing purpose.
+        actor Runner {
+            private let semaphore: AsyncSemaphore
+            private var count = 0
+            private(set) var effectiveMaxConcurrentRuns = 0
+            
+            init(maxConcurrentRuns: Int) {
+                semaphore = AsyncSemaphore(value: maxConcurrentRuns)
+            }
+            
+            func run() async throws {
+                try await semaphore.waitUnlessCancelled()
+                defer { semaphore.signal()}
+                
+                count += 1
+                effectiveMaxConcurrentRuns = max(effectiveMaxConcurrentRuns, count)
+                try! await Task.sleep(nanoseconds: 100_000_000)
+                count -= 1
+            }
+        }
+        
+        for maxConcurrentRuns in 1...10 {
+            let runner = Runner(maxConcurrentRuns: maxConcurrentRuns)
+            
+            // Spawn many concurrent tasks
+            await withThrowingTaskGroup(of: Void.self) { group in
+                for _ in 0..<20 {
+                    group.addTask {
+                        try await runner.run()
+                    }
+                }
+            }
+            
+            let effectiveMaxConcurrentRuns = await runner.effectiveMaxConcurrentRuns
+            XCTAssertEqual(effectiveMaxConcurrentRuns, maxConcurrentRuns)
         }
     }
 }
