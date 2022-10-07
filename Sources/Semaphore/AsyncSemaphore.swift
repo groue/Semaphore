@@ -195,7 +195,8 @@ public final class AsyncSemaphore: @unchecked Sendable {
             // the current task is cancelled), or call it later (if the task is
             // cancelled later). In the first case, we're still holding the lock,
             // waiting for the continuation. In the second case, we do not hold
-            // the  This is the reason why we use a recursive lock.
+            // the lock. Being able to handle both situations is the reason why
+            // we use a recursive lock.
             lock()
             defer { unlock() }
             

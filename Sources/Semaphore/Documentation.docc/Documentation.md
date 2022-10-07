@@ -25,7 +25,7 @@ Task {
 semaphore.signal()
 ```
 
-An actor can use a semaphore in order to make its methods can't run concurrently:
+An actor can use a semaphore so that its methods can't run concurrently, avoiding the "actor reentrancy problem":
 
 ```swift
 actor MyActor {
