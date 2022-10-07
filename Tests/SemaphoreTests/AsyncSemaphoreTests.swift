@@ -2,7 +2,7 @@ import Dispatch
 import XCTest
 @testable import Semaphore
 
-final class SemaphoreTests: XCTestCase {
+final class AsyncSemaphoreTests: XCTestCase {
     
     func testSignalWithoutSuspendedTasks() async {
         // Check DispatchSemaphore behavior
@@ -21,20 +21,20 @@ final class SemaphoreTests: XCTestCase {
             }
         }
         
-        // Test that Semaphore behaves identically
+        // Test that AsyncSemaphore behaves identically
         do {
             do {
-                let sem = Semaphore(value: 0)
+                let sem = AsyncSemaphore(value: 0)
                 let woken = sem.signal()
                 XCTAssertFalse(woken)
             }
             do {
-                let sem = Semaphore(value: 1)
+                let sem = AsyncSemaphore(value: 1)
                 let woken = sem.signal()
                 XCTAssertFalse(woken)
             }
             do {
-                let sem = Semaphore(value: 2)
+                let sem = AsyncSemaphore(value: 2)
                 let woken = sem.signal()
                 XCTAssertFalse(woken)
             }
@@ -57,10 +57,10 @@ final class SemaphoreTests: XCTestCase {
             XCTAssertFalse(sem.signal() != 0)
         }
         
-        // Test that Semaphore behaves identically
+        // Test that AsyncSemaphore behaves identically
         do {
             // Given a task suspended on the semaphore
-            let sem = Semaphore(value: 0)
+            let sem = AsyncSemaphore(value: 0)
             Task { await sem.wait() }
             try await Task.sleep(nanoseconds: delay)
             
@@ -95,10 +95,10 @@ final class SemaphoreTests: XCTestCase {
             wait(for: [ex2], timeout: 1)
         }
         
-        // Test that Semaphore behaves identically
+        // Test that AsyncSemaphore behaves identically
         do {
             // Given a zero semaphore
-            let sem = Semaphore(value: 0)
+            let sem = AsyncSemaphore(value: 0)
             
             // When a task waits for this semaphore,
             let ex1 = expectation(description: "wait")
@@ -120,7 +120,7 @@ final class SemaphoreTests: XCTestCase {
     }
     
     func test_cancellation_while_suspended_throws_CancellationError() async throws {
-        let sem = Semaphore(value: 0)
+        let sem = AsyncSemaphore(value: 0)
         let ex = expectation(description: "cancellation")
         let task = Task {
             do {
@@ -138,7 +138,7 @@ final class SemaphoreTests: XCTestCase {
     }
     
     func test_cancellation_before_suspension_throws_CancellationError() async throws {
-        let sem = Semaphore(value: 0)
+        let sem = AsyncSemaphore(value: 0)
         let ex = expectation(description: "cancellation")
         let task = Task {
             // Uncancellable delay
@@ -162,7 +162,7 @@ final class SemaphoreTests: XCTestCase {
     
     func test_that_cancellation_while_suspended_increments_the_semaphore() async throws {
         // Given a task cancelled while suspended on a semaphore,
-        let sem = Semaphore(value: 0)
+        let sem = AsyncSemaphore(value: 0)
         let task = Task {
             try await sem.waitUnlessCancelled()
         }
@@ -189,7 +189,7 @@ final class SemaphoreTests: XCTestCase {
     
     func test_that_cancellation_before_suspension_increments_the_semaphore() async throws {
         // Given a task cancelled before it waits on a semaphore,
-        let sem = Semaphore(value: 0)
+        let sem = AsyncSemaphore(value: 0)
         let task = Task {
             // Uncancellable delay
             await withUnsafeContinuation { continuation in
@@ -236,7 +236,7 @@ final class SemaphoreTests: XCTestCase {
         let maxCount = 10
         for count in 1...maxCount {
             let runner = Runner()
-            let sem = Semaphore(value: count)
+            let sem = AsyncSemaphore(value: count)
             
             // Spawn many concurrent tasks
             await withThrowingTaskGroup(of: Void.self) { group in
@@ -273,7 +273,7 @@ final class SemaphoreTests: XCTestCase {
         let maxCount = 10
         for count in 1...maxCount {
             let runner = Runner()
-            let sem = Semaphore(value: count)
+            let sem = AsyncSemaphore(value: count)
             
             // Spawn many concurrent tasks
             await withThrowingTaskGroup(of: Void.self) { group in

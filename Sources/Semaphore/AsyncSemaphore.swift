@@ -24,7 +24,7 @@ import Foundation
 /// An object that controls access to a resource across multiple execution
 /// contexts through use of a traditional counting semaphore.
 ///
-/// Unlike `DispatchSemaphore`,  ``Semaphore`` does not block any thread.
+/// Unlike `DispatchSemaphore`,  ``AsyncSemaphore`` does not block any thread.
 /// Instead, it suspends Swift concurrency tasks.
 ///
 /// ## Topics
@@ -41,7 +41,7 @@ import Foundation
 ///
 /// - ``wait()``
 /// - ``waitUnlessCancelled()``
-public final class Semaphore {
+public final class AsyncSemaphore {
     /// "Waiting for a signal" is easily said, but several possible states exist.
     private class Suspension {
         enum State {
@@ -93,12 +93,12 @@ public final class Semaphore {
     /// - parameter value: The starting value for the semaphore. Do not pass a
     ///   value less than zero.
     public init(value: Int) {
-        precondition(value >= 0, "Semaphore requires a value equal or greater than zero")
+        precondition(value >= 0, "AsyncSemaphore requires a value equal or greater than zero")
         self.value = value
     }
     
     deinit {
-        precondition(suspensions.isEmpty, "Semaphore is deallocated while some task(s) are suspended waiting for a signal.")
+        precondition(suspensions.isEmpty, "AsyncSemaphore is deallocated while some task(s) are suspended waiting for a signal.")
     }
     
     // MARK: - Locking

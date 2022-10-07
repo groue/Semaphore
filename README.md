@@ -1,15 +1,15 @@
 # Semaphore
 
-`Semaphore` is an object that controls access to a resource across multiple execution contexts through use of a traditional counting semaphore.
+`AsyncSemaphore` is an object that controls access to a resource across multiple execution contexts through use of a traditional counting semaphore.
 
-Unlike [`DispatchSemaphore`], `Semaphore` does not block any thread. Instead, it suspends Swift concurrency tasks.
+Unlike [`DispatchSemaphore`], `AsyncSemaphore` does not block any thread. Instead, it suspends Swift concurrency tasks.
 
 ### Usage
 
 You can use a semaphore to suspend a task and resume it later:
 
 ```swift
-let semaphore = Semaphore(value: 0)
+let semaphore = AsyncSemaphore(value: 0)
 
 Task {
     // Suspends the task until a signal occurs.
@@ -25,7 +25,7 @@ You can use a semaphore in order to make sure an actor's methods can't run concu
 
 ```swift
 actor MyActor {
-    private let semaphore = Semaphore(value: 1)
+    private let semaphore = AsyncSemaphore(value: 1)
     
     func serializedMethod() async {
         // Makes sure no two tasks can execute self.serializedMethod() concurrently. 
