@@ -4,6 +4,8 @@
 
 **Requirements**: iOS 13.0+ / macOS 10.15+ / tvOS 13.0+ / watchOS 6.0+ • Swift 5.7+ / Xcode 14+
 
+📖 **[Documentation](https://swiftpackageindex.com/groue/Semaphore/documentation)**
+
 ---
 
 This package provides `AsyncSemaphore`, a [traditional counting semaphore](https://en.wikipedia.org/wiki/Semaphore_(programming)).
