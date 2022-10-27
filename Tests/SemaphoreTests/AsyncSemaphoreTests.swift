@@ -3,6 +3,12 @@ import XCTest
 @testable import Semaphore
 
 final class AsyncSemaphoreTests: XCTestCase {
+
+    override func setUp() {
+        super.setUp()
+        // Don't continue after completeWithin(nanoseconds:) causes a XCTFail
+        continueAfterFailure = false
+    }
     
     func testSignalWithoutSuspendedTasks() async {
         // Check DispatchSemaphore behavior
@@ -218,7 +224,43 @@ final class AsyncSemaphoreTests: XCTestCase {
         sem.signal()
         wait(for: [ex2], timeout: 0.5)
     }
-    
+
+    func test_that_cancellation_before_suspension_increments_the_semaphore_two() async {
+        await completeWithin(nanoseconds: NSEC_PER_SEC * 2) {
+            let sem = AsyncSemaphore(value: 1)
+            let task = Task {
+                while !Task.isCancelled {
+                    await Task.yield()
+                }
+                try await sem.waitUnlessCancelled()
+            }
+            task.cancel()
+            try? await task.value
+            await sem.wait()
+        }
+    }
+
+    func test_that_cancellation_while_suspended_increments_the_semaphore_two() async {
+        await completeWithin(nanoseconds: NSEC_PER_SEC * 2) {
+            let sem = AsyncSemaphore(value: 0)
+            let running = Atomic(false)
+            let task = Task {
+                running.mutate { $0 = true }
+                try await sem.waitUnlessCancelled()
+                while !Task.isCancelled {
+                    await Task.yield()
+                }
+            }
+            while !running.value {
+                await Task.yield()
+            }
+            task.cancel()
+            try? await task.value
+            sem.signal()
+            await sem.wait()
+        }
+    }
+
     // Test that semaphore can limit the number of concurrent executions of
     // an actor method.
     func test_semaphore_as_a_resource_limiter_on_actor_method() async {
@@ -393,5 +435,52 @@ final class AsyncSemaphoreTests: XCTestCase {
             let effectiveMaxConcurrentRuns = await runner.effectiveMaxConcurrentRuns
             XCTAssertEqual(effectiveMaxConcurrentRuns, maxConcurrentRuns)
         }
+    }
+}
+
+/// Helper to complete a test within some amount of time or fail.
+/// XCTestExpectation don't work, when using LIBDISPATCH_COOPERATIVE_POOL_STRICT=1 as environment variable
+/// or e.g. running tests on an iOS simulator as the wait(for:timeout:) blocks the pool.
+/// Which means after the await no further async work can execute to fulfill any expectation that wait
+/// is waiting for.
+func completeWithin(nanoseconds nanosecondsDeadline: UInt64,
+                    file: StaticString = #filePath,
+                    line: UInt = #line,
+                    work: () async throws -> Void) async rethrows {
+    let checkDeadlineTask = Task {
+        try await Task.sleep(nanoseconds: nanosecondsDeadline)
+        try Task.checkCancellation()
+        XCTFail("Test timed out.", file: file, line: line)
+    }
+    try await work()
+    checkDeadlineTask.cancel()
+}
+
+final class Atomic<A>: @unchecked Sendable {
+    private var lock = NSRecursiveLock()
+    private var _value: A
+
+    public init(_ value: A) {
+        _value = value
+    }
+
+    public var value: A {
+        synced {
+            _value
+        }
+    }
+
+    public func mutate(_ transform: (inout A) -> Void) {
+        synced {
+            transform(&self._value)
+        }
+    }
+
+    private func synced<Result>(_ action: () throws -> Result) rethrows -> Result {
+        lock.lock()
+        defer {
+            lock.unlock()
+        }
+        return try action()
     }
 }
