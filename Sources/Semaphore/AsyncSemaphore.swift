@@ -161,9 +161,12 @@ public final class AsyncSemaphore: @unchecked Sendable {
         
         value -= 1
         if value >= 0 {
-            unlock()
+            defer { unlock() }
             // All code paths check for cancellation
-            try Task.checkCancellation()
+            if Task.isCancelled {
+                value += 1
+                throw CancellationError()
+            }
             return
         }
         
