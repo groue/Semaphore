@@ -110,7 +110,7 @@ final class AsyncSemaphoreTests: XCTestCase {
             let ex1 = expectation(description: "wait")
             ex1.isInverted = true
             let ex2 = expectation(description: "woken")
-            Task {
+            let task = Task {
                 await sem.wait()
                 ex1.fulfill()
                 ex2.fulfill()
@@ -121,6 +121,7 @@ final class AsyncSemaphoreTests: XCTestCase {
             
             // When a signal occurs, then the suspended task is resumed.
             sem.signal()
+            await task.value
             wait(for: [ex2], timeout: 0.5)
         }
     }
@@ -140,6 +141,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         }
         try await Task.sleep(nanoseconds: 100_000_000)
         task.cancel()
+        await task.value
         wait(for: [ex], timeout: 1)
     }
     
@@ -163,6 +165,7 @@ final class AsyncSemaphoreTests: XCTestCase {
             ex.fulfill()
         }
         task.cancel()
+        await task.value
         wait(for: [ex], timeout: 5)
     }
     
@@ -179,7 +182,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         let ex1 = expectation(description: "wait")
         ex1.isInverted = true
         let ex2 = expectation(description: "woken")
-        Task {
+        let taskTwo = Task {
             await sem.wait()
             ex1.fulfill()
             ex2.fulfill()
@@ -190,6 +193,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         
         // When a signal occurs, then the suspended task is resumed.
         sem.signal()
+        await taskTwo.value
         wait(for: [ex2], timeout: 0.5)
     }
     
@@ -211,7 +215,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         let ex1 = expectation(description: "wait")
         ex1.isInverted = true
         let ex2 = expectation(description: "woken")
-        Task {
+        let taskTwo = Task {
             await sem.wait()
             ex1.fulfill()
             ex2.fulfill()
@@ -222,6 +226,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         
         // When a signal occurs, then the suspended task is resumed.
         sem.signal()
+        await taskTwo.value
         wait(for: [ex2], timeout: 0.5)
     }
 
