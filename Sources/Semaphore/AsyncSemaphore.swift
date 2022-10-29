@@ -81,10 +81,7 @@ public final class AsyncSemaphore: @unchecked Sendable {
     private var suspensions: [Suspension] = []
     
     /// The lock that protects `value` and `suspensions`.
-    ///
-    /// It is recursive in order to handle cancellation (see the implementation
-    /// of ``waitUnlessCancelled()``).
-    private let _lock = NSRecursiveLock()
+    private let _lock = NSLock()
     
     // MARK: - Creating a Semaphore
     
