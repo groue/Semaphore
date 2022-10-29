@@ -169,13 +169,19 @@ public final class AsyncSemaphore: @unchecked Sendable {
         let suspension = Suspension()
 
         do {
+            // The AsyncThrowingStream build closure providing the continuation is not @escaping.
+            // So it can't run after init returns. Therefore we still have the lock while inserting the suspension.
             let stream: AsyncThrowingStream<Never, Error> = AsyncThrowingStream<Never, Error> { continuation in
                 suspension.state = .suspendedUnlessCancelled(continuation)
                 suspensions.insert(suspension, at: 0)
             }
             unlock()
 
+            // AsyncThrowingStream participates in cooperative cancellation so this throws, if the current
+            // async context is cancelled.
             for try await _ in stream {}
+
+            // All code paths check for cancellation
             try Task.checkCancellation()
         } catch {
             lock()
