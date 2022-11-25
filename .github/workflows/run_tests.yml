@@ -1,0 +1,36 @@
+name: "Run Tests"
+
+on:
+  workflow_dispatch:
+  pull_request:
+    paths:
+      [
+        "**Package.resolved",
+        "**.swift",
+        ".github/workflows/run_tests.yml",
+      ]
+  push:
+    paths:
+      [
+        "**Package.resolved",
+        "**.swift",
+        ".github/workflows/run_tests.yml",
+      ]
+
+jobs:
+  run-tests:
+    name: Run Tests on ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [macos-latest, ubuntu-latest]
+        swift-version: ["5.7"]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v3
+      - name: Install Swift ${{ matrix.swift-version }}
+        if: ${{ runner.os != 'Windows' }}
+        uses: swift-actions/setup-swift@v1
+        with:
+          swift-version: ${{ matrix.swift-version }}
+      - name: Test
+        run: "swift test"
