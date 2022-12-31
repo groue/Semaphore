@@ -61,7 +61,7 @@ class Downloader {
 
   func download(...) async throws -> Data {
     try await semaphore.waitUnlessCancelled()
-    defer { semaphore.signal }
+    defer { semaphore.signal() }
     return try await ...
   }
 }
