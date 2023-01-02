@@ -49,8 +49,8 @@ public final class AsyncSemaphore: @unchecked Sendable {
             case pending
             
             /// Waiting for a signal, with support for cancellation.
-            case suspendedUnlessCancelled(UnsafeContinuation<Void, Error>)
             
+            case suspendedUnlessCancelled(AsyncThrowingStream<Never, Error>.Continuation)
             /// Waiting for a signal, with no support for cancellation.
             case suspended(UnsafeContinuation<Void, Never>)
             
@@ -81,10 +81,7 @@ public final class AsyncSemaphore: @unchecked Sendable {
     private var suspensions: [Suspension] = []
     
     /// The lock that protects `value` and `suspensions`.
-    ///
-    /// It is recursive in order to handle cancellation (see the implementation
-    /// of ``waitUnlessCancelled()``).
-    private let _lock = NSRecursiveLock()
+    private let _lock = NSLock()
     
     // MARK: - Creating a Semaphore
     
@@ -170,33 +167,23 @@ public final class AsyncSemaphore: @unchecked Sendable {
         // Get ready for being suspended waiting for a continuation, or for
         // early cancellation.
         let suspension = Suspension()
-        
-        try await withTaskCancellationHandler {
-            try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<Void, Error>) in
-                if case .cancelled = suspension.state {
-                    // Current task was already cancelled when withTaskCancellationHandler
-                    // was invoked.
-                    unlock()
-                    continuation.resume(throwing: CancellationError())
-                } else {
-                    // Current task was not cancelled: register the continuation
-                    // that `signal` will resume.
-                    //
-                    // The first suspended task will be the first task resumed by `signal`.
-                    // This is not intended to be a strong fifo guarantee, but just
-                    // an attempt at some fairness.
-                    suspension.state = .suspendedUnlessCancelled(continuation)
-                    suspensions.insert(suspension, at: 0)
-                    unlock()
-                }
+
+        do {
+            // The AsyncThrowingStream build closure providing the continuation is not @escaping.
+            // So it can't run after init returns. Therefore we still have the lock while inserting the suspension.
+            let stream: AsyncThrowingStream<Never, Error> = AsyncThrowingStream<Never, Error> { continuation in
+                suspension.state = .suspendedUnlessCancelled(continuation)
+                suspensions.insert(suspension, at: 0)
             }
-        } onCancel: {
-            // withTaskCancellationHandler may immediately call this block (if
-            // the current task is cancelled), or call it later (if the task is
-            // cancelled later). In the first case, we're still holding the lock,
-            // waiting for the continuation. In the second case, we do not hold
-            // the lock. Being able to handle both situations is the reason why
-            // we use a recursive lock.
+            unlock()
+
+            // AsyncThrowingStream participates in cooperative cancellation so this throws, if the current
+            // async context is cancelled.
+            for try await _ in stream {}
+
+            // All code paths check for cancellation
+            try Task.checkCancellation()
+        } catch {
             lock()
             defer { unlock() }
             
@@ -206,14 +193,7 @@ public final class AsyncSemaphore: @unchecked Sendable {
                 suspensions.remove(at: index)
             }
             
-            if case let .suspendedUnlessCancelled(continuation) = suspension.state {
-                // Task is cancelled while suspended: resume with a CancellationError.
-                continuation.resume(throwing: CancellationError())
-            } else {
-                // Current task is cancelled
-                // Next step: withUnsafeThrowingContinuation right above
-                suspension.state = .cancelled
-            }
+            throw CancellationError()
         }
     }
     
@@ -235,7 +215,7 @@ public final class AsyncSemaphore: @unchecked Sendable {
         
         switch suspensions.popLast()?.state {
         case let .suspendedUnlessCancelled(continuation):
-            continuation.resume()
+            continuation.finish()
             return true
         case let .suspended(continuation):
             continuation.resume()

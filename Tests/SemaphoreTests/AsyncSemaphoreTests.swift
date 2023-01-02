@@ -394,4 +394,13 @@ final class AsyncSemaphoreTests: XCTestCase {
             XCTAssertEqual(effectiveMaxConcurrentRuns, maxConcurrentRuns)
         }
     }
+
+    func test_async_throwing_stream_closure_runs_synchronously() {
+        var continuation: AsyncThrowingStream<Never, Error>.Continuation!
+        let stream: AsyncThrowingStream<Never, Error> = AsyncThrowingStream<Never, Error> {
+            continuation = $0
+        }
+        XCTAssertNotNil(continuation)
+        _ = stream
+    }
 }
