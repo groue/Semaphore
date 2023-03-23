@@ -102,24 +102,18 @@ public final class AsyncSemaphore: @unchecked Sendable {
     }
     
     // MARK: - Locking
-    //
-    // Swift concurrency is... unfinished. We really need to protect our inner
-    // state (`value` and `suspension`) across the calls to
-    // `withUnsafeContinuation`. Unfortunately, this method introduces a
-    // suspension point. So we need a lock. But the Swift compiler is never out
-    // of funny jokes:
+    
+    // Let's hide the locking primitive in order to avoid a compiler warning:
     //
     // > Instance method 'lock' is unavailable from asynchronous contexts;
-    // > Use async-safe scoped locking instead; this is an error in Swift 6
+    // > Use async-safe scoped locking instead; this is an error in Swift 6.
     //
-    // This is very immature, because we don't quite have any other solution.
-    // Maybe the authors of Swift concurrency will find it interesting
-    // eventually to provide 1. building blocks that 2. solve known problems
-    // and 3. back deploy. So far they're busy polishing something else.
-    //
-    // So let's just hide the lock and mute this stupid warning:
-    func lock() { _lock.lock() }
-    func unlock() { _lock.unlock() }
+    // We're not sweeping bad stuff under the rug. We really need to protect
+    // our inner state (`value` and `suspension`) across the calls to
+    // `withUnsafeContinuation`. Unfortunately, this method introduces a
+    // suspension point. So we need a lock.
+    private func lock() { _lock.lock() }
+    private func unlock() { _lock.unlock() }
     
     // MARK: - Waiting for the Semaphore
     
