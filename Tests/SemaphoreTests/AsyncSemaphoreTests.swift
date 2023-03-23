@@ -219,6 +219,31 @@ final class AsyncSemaphoreTests: XCTestCase {
         wait(for: [ex2], timeout: 0.5)
     }
     
+    // Inspired by <https://github.com/groue/Semaphore/pull/3>
+    func test_that_cancellation_before_suspension_increments_the_semaphore_two() async {
+        // Given a task that waits for a semaphore with value 1 after the
+        // task has been cancelled,
+        let sem = AsyncSemaphore(value: 1)
+        let task = Task {
+            while !Task.isCancelled {
+                await Task.yield()
+            }
+            try await sem.waitUnlessCancelled()
+        }
+        task.cancel()
+        try? await task.value
+        
+        // When a second task waits for this semaphore,
+        let ex = expectation(description: "wait")
+        Task {
+            await sem.wait()
+            ex.fulfill()
+        }
+        
+        // Then the second task is not suspended.
+        wait(for: [ex], timeout: 0.5)
+    }
+    
     // Test that semaphore can limit the number of concurrent executions of
     // an actor method.
     func test_semaphore_as_a_resource_limiter_on_actor_method() async {
