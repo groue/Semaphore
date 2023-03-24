@@ -134,9 +134,8 @@ public final class AsyncSemaphore: @unchecked Sendable {
         await withUnsafeContinuation { continuation in
             // Register the continuation that `signal` will resume.
             //
-            // The first suspended task will be the first task resumed by `signal`.
-            // This is not intended to be a strong fifo guarantee, but just
-            // an attempt at some fairness.
+            // The first suspended task will be the first task
+            // resumed by `signal` (FIFO).
             suspensions.insert(Suspension(continuation: continuation), at: 0)
             unlock()
         }
@@ -185,9 +184,8 @@ public final class AsyncSemaphore: @unchecked Sendable {
                     // Current task was not cancelled: register the continuation
                     // that `signal` will resume.
                     //
-                    // The first suspended task will be the first task resumed by `signal`.
-                    // This is not intended to be a strong fifo guarantee, but just
-                    // an attempt at some fairness.
+                    // The first suspended task will be the first task
+                    // resumed by `signal` (FIFO).
                     suspension.state = .suspendedUnlessCancelled(continuation)
                     suspensions.insert(suspension, at: 0)
                     unlock()
@@ -236,6 +234,7 @@ public final class AsyncSemaphore: @unchecked Sendable {
         
         value += 1
         
+        // popLast because FIFO
         switch suspensions.popLast()?.state {
         case let .suspendedUnlessCancelled(continuation):
             continuation.resume()
