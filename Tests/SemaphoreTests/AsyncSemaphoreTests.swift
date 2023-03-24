@@ -4,7 +4,7 @@ import XCTest
 
 final class AsyncSemaphoreTests: XCTestCase {
     
-    func testSignalWithoutSuspendedTasks() async {
+    func testSignalWithoutSuspendedTasks() {
         // Check DispatchSemaphore behavior
         do {
             do {
@@ -71,7 +71,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         }
     }
     
-    func test_wait_suspends_on_zero_semaphore_until_signal() async {
+    func test_wait_suspends_on_zero_semaphore_until_signal() {
         // Check DispatchSemaphore behavior
         do {
             // Given a zero semaphore
@@ -137,7 +137,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         wait(for: [ex], timeout: 1)
     }
     
-    func test_cancellation_before_suspension_throws_CancellationError() async throws {
+    func test_cancellation_before_suspension_throws_CancellationError() throws {
         let sem = AsyncSemaphore(value: 0)
         let ex = expectation(description: "cancellation")
         let task = Task {
@@ -187,7 +187,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         wait(for: [ex2], timeout: 0.5)
     }
     
-    func test_that_cancellation_before_suspension_increments_the_semaphore() async throws {
+    func test_that_cancellation_before_suspension_increments_the_semaphore() throws {
         // Given a task cancelled before it waits on a semaphore,
         let sem = AsyncSemaphore(value: 0)
         let task = Task {
