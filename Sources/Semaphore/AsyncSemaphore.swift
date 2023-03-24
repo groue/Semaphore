@@ -199,7 +199,6 @@ public final class AsyncSemaphore: @unchecked Sendable {
             // the lock. Being able to handle both situations is the reason why
             // we use a recursive lock.
             lock()
-            defer { unlock() }
             
             // We're no longer waiting for a signal
             value += 1
@@ -209,11 +208,13 @@ public final class AsyncSemaphore: @unchecked Sendable {
             
             if case let .suspendedUnlessCancelled(continuation) = suspension.state {
                 // Task is cancelled while suspended: resume with a CancellationError.
+                unlock()
                 continuation.resume(throwing: CancellationError())
             } else {
                 // Current task is cancelled
                 // Next step: withUnsafeThrowingContinuation right above
                 suspension.state = .cancelled
+                unlock()
             }
         }
     }
@@ -230,19 +231,21 @@ public final class AsyncSemaphore: @unchecked Sendable {
     @discardableResult
     public func signal() -> Bool {
         lock()
-        defer { unlock() }
         
         value += 1
         
         // popLast because FIFO
         switch suspensions.popLast()?.state {
         case let .suspendedUnlessCancelled(continuation):
+            unlock()
             continuation.resume()
             return true
         case let .suspended(continuation):
+            unlock()
             continuation.resume()
             return true
         default:
+            unlock()
             return false
         }
     }
