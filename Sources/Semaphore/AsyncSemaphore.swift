@@ -143,14 +143,14 @@ public final class AsyncSemaphore: @unchecked Sendable {
         }
     }
     
-    /// Waits for, or decrements, a semaphore.
+    /// Waits for, or decrements, a semaphore, with support for cancellation.
     ///
     /// Decrement the counting semaphore. If the resulting value is less than
     /// zero, this function suspends the current task until a signal occurs,
     /// without blocking the underlying thread. Otherwise, no suspension happens.
     ///
-    /// - Throws: If the task is canceled before a signal occurs, this function
-    ///   throws `CancellationError`.
+    /// If the task is canceled before a signal occurs, this function
+    /// throws `CancellationError`.
     public func waitUnlessCancelled() async throws {
         lock()
         
@@ -229,10 +229,12 @@ public final class AsyncSemaphore: @unchecked Sendable {
     /// Signals (increments) a semaphore.
     ///
     /// Increment the counting semaphore. If the previous value was less than
-    /// zero, this function resumes a task currently suspended in ``wait()``.
+    /// zero, this function resumes a task currently suspended in ``wait()``
+    /// or ``waitUnlessCancelled()``.
     ///
-    /// - returns This function returns true if a suspended task is resumed.
-    ///   Otherwise, false is returned.
+    /// - returns: This function returns true if a suspended task is
+    ///   resumed. Otherwise, the result is false, meaning that no task was
+    ///   waiting for the semaphore.
     @discardableResult
     public func signal() -> Bool {
         lock()
