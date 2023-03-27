@@ -42,8 +42,16 @@ import Foundation
 /// - ``wait()``
 /// - ``waitUnlessCancelled()``
 public final class AsyncSemaphore: @unchecked Sendable {
-    /// "Waiting for a signal" is easily said, but several possible states exist.
-    private class Suspension {
+    /// The `Suspension` class holds the state of one given call to a
+    /// waiting method.
+    ///
+    /// It is a class because instance identity helps `waitUnlessCancelled()`
+    /// deal with both early and late cancellation.
+    ///
+    /// The private `Suspension` class is not really Sendable. But we make
+    /// it @unchecked Sendable in order to prevent compiler warnings:
+    /// the suspension state is always protected by the semaphore `_lock`.
+    private class Suspension: @unchecked Sendable {
         enum State {
             /// Initial state. Next is suspended, or cancelled.
             case pending
@@ -60,12 +68,8 @@ public final class AsyncSemaphore: @unchecked Sendable {
         
         var state: State
         
-        init() {
-            state = .pending
-        }
-        
-        init(continuation: UnsafeContinuation<Void, Never>) {
-            state = .suspended(continuation)
+        init(state: State) {
+            self.state = state
         }
     }
     
@@ -133,10 +137,8 @@ public final class AsyncSemaphore: @unchecked Sendable {
         
         await withUnsafeContinuation { continuation in
             // Register the continuation that `signal` will resume.
-            //
-            // The first suspended task will be the first task
-            // resumed by `signal` (FIFO).
-            suspensions.insert(Suspension(continuation: continuation), at: 0)
+            let suspension = Suspension(state: .suspended(continuation))
+            suspensions.insert(suspension, at: 0) // FIFO
             unlock()
         }
     }
@@ -171,23 +173,22 @@ public final class AsyncSemaphore: @unchecked Sendable {
         
         // Get ready for being suspended waiting for a continuation, or for
         // early cancellation.
-        let suspension = Suspension()
+        let suspension = Suspension(state: .pending)
         
         try await withTaskCancellationHandler {
             try await withUnsafeThrowingContinuation { (continuation: UnsafeContinuation<Void, Error>) in
                 if case .cancelled = suspension.state {
-                    // Current task was already cancelled when withTaskCancellationHandler
-                    // was invoked.
+                    // Early cancellation: waitUnlessCancelled() is called from
+                    // a cancelled task, and the `onCancel` closure below
+                    // has marked the suspension as cancelled.
+                    // Resume with a CancellationError.
                     unlock()
                     continuation.resume(throwing: CancellationError())
                 } else {
-                    // Current task was not cancelled: register the continuation
+                    // Current task is not cancelled: register the continuation
                     // that `signal` will resume.
-                    //
-                    // The first suspended task will be the first task
-                    // resumed by `signal` (FIFO).
                     suspension.state = .suspendedUnlessCancelled(continuation)
-                    suspensions.insert(suspension, at: 0)
+                    suspensions.insert(suspension, at: 0) // FIFO
                     unlock()
                 }
             }
@@ -207,12 +208,16 @@ public final class AsyncSemaphore: @unchecked Sendable {
             }
             
             if case let .suspendedUnlessCancelled(continuation) = suspension.state {
-                // Task is cancelled while suspended: resume with a CancellationError.
+                // Late cancellation: the task is cancelled while waiting
+                // from the semaphore. Resume with a CancellationError.
                 unlock()
                 continuation.resume(throwing: CancellationError())
             } else {
-                // Current task is cancelled
-                // Next step: withUnsafeThrowingContinuation right above
+                // Early cancellation: waitUnlessCancelled() is called from
+                // a cancelled task.
+                //
+                // The next step is the `withTaskCancellationHandler`
+                // operation closure right above.
                 suspension.state = .cancelled
                 unlock()
             }
@@ -234,8 +239,7 @@ public final class AsyncSemaphore: @unchecked Sendable {
         
         value += 1
         
-        // popLast because FIFO
-        switch suspensions.popLast()?.state {
+        switch suspensions.popLast()?.state { // FIFO
         case let .suspendedUnlessCancelled(continuation):
             unlock()
             continuation.resume()
