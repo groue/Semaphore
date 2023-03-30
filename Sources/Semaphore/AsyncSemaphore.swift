@@ -42,18 +42,16 @@ import Foundation
 /// - ``wait()``
 /// - ``waitUnlessCancelled()``
 public final class AsyncSemaphore: @unchecked Sendable {
-    /// The `Suspension` class holds the state of one given call to a
-    /// waiting method.
+    /// `Suspension` is the state of a task waiting for a signal.
     ///
     /// It is a class because instance identity helps `waitUnlessCancelled()`
     /// deal with both early and late cancellation.
     ///
-    /// The private `Suspension` class is not really Sendable. But we make
-    /// it @unchecked Sendable in order to prevent compiler warnings:
-    /// the suspension state is always protected by the semaphore `_lock`.
+    /// We make it @unchecked Sendable in order to prevent compiler warnings:
+    /// instances are always protected by the semaphore's lock.
     private class Suspension: @unchecked Sendable {
         enum State {
-            /// Initial state. Next is suspended, or cancelled.
+            /// Initial state. Next is suspendedUnlessCancelled, or cancelled.
             case pending
             
             /// Waiting for a signal, with support for cancellation.
@@ -79,9 +77,6 @@ public final class AsyncSemaphore: @unchecked Sendable {
     private var value: Int
     
     /// As many elements as there are suspended tasks waiting for a signal.
-    /// We store `Suspension` instances instead of `UnsafeContinuation`, because
-    /// we support cancellation by removing `Suspension` instances from
-    /// this array.
     private var suspensions: [Suspension] = []
     
     /// The lock that protects `value` and `suspensions`.
