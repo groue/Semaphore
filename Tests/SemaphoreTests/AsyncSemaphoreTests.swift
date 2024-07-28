@@ -71,7 +71,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         }
     }
     
-    func test_wait_suspends_on_zero_semaphore_until_signal() {
+    func test_wait_suspends_on_zero_semaphore_until_signal() async {
         // Check DispatchSemaphore behavior
         do {
             // Given a zero semaphore
@@ -88,11 +88,11 @@ final class AsyncSemaphoreTests: XCTestCase {
             }.start()
             
             // Then the thread is initially blocked.
-            wait(for: [ex1], timeout: 0.5)
+            await fulfillment(of: [ex1], timeout: 0.5)
             
             // When a signal occurs, then the waiting thread is woken.
             sem.signal()
-            wait(for: [ex2], timeout: 1)
+            await fulfillment(of: [ex2], timeout: 1)
         }
         
         // Test that AsyncSemaphore behaves identically
@@ -111,11 +111,11 @@ final class AsyncSemaphoreTests: XCTestCase {
             }
             
             // Then the task is initially suspended.
-            wait(for: [ex1], timeout: 0.5)
+            await fulfillment(of: [ex1], timeout: 0.5)
             
             // When a signal occurs, then the suspended task is resumed.
             sem.signal()
-            wait(for: [ex2], timeout: 0.5)
+            await fulfillment(of: [ex2], timeout: 0.5)
         }
     }
     
@@ -134,7 +134,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         }
         try await Task.sleep(nanoseconds: 100_000_000)
         task.cancel()
-        wait(for: [ex], timeout: 1)
+        await fulfillment(of: [ex], timeout: 1)
     }
     
     func test_cancellation_before_suspension_throws_CancellationError() throws {
@@ -180,14 +180,14 @@ final class AsyncSemaphoreTests: XCTestCase {
         }
         
         // Then the task is initially suspended.
-        wait(for: [ex1], timeout: 0.5)
+        await fulfillment(of: [ex1], timeout: 0.5)
         
         // When a signal occurs, then the suspended task is resumed.
         sem.signal()
-        wait(for: [ex2], timeout: 0.5)
+        await fulfillment(of: [ex2], timeout: 0.5)
     }
     
-    func test_that_cancellation_before_suspension_increments_the_semaphore() throws {
+    func test_that_cancellation_before_suspension_increments_the_semaphore() async throws {
         // Given a task cancelled before it waits on a semaphore,
         let sem = AsyncSemaphore(value: 0)
         let task = Task {
@@ -212,11 +212,11 @@ final class AsyncSemaphoreTests: XCTestCase {
         }
         
         // Then the task is initially suspended.
-        wait(for: [ex1], timeout: 0.5)
+        await fulfillment(of: [ex1], timeout: 0.5)
         
         // When a signal occurs, then the suspended task is resumed.
         sem.signal()
-        wait(for: [ex2], timeout: 0.5)
+        await fulfillment(of: [ex2], timeout: 0.5)
     }
     
     // Inspired by <https://github.com/groue/Semaphore/pull/3>
@@ -241,7 +241,7 @@ final class AsyncSemaphoreTests: XCTestCase {
         }
         
         // Then the second task is not suspended.
-        wait(for: [ex], timeout: 0.5)
+        await fulfillment(of: [ex], timeout: 0.5)
     }
     
     // Test that semaphore can limit the number of concurrent executions of
