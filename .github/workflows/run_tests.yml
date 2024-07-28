@@ -23,13 +23,13 @@ jobs:
     strategy:
       matrix:
         os: [macos-latest, ubuntu-latest]
-        swift-version: ["5.7.0"]
+        swift-version: ["5.10.0"]
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v3
       - name: Install Swift ${{ matrix.swift-version }}
         if: ${{ runner.os != 'Windows' }}
-        uses: swift-actions/setup-swift@v1
+        uses: swift-actions/setup-swift@v2
         with:
           swift-version: ${{ matrix.swift-version }}
       - name: Test

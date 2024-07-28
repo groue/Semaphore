@@ -1,4 +1,4 @@
-// swift-tools-version: 5.7
+// swift-tools-version: 5.10
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -25,12 +25,18 @@ let package = Package(
         // Targets are the basic building blocks of a package. A target can define a module or a test suite.
         // Targets can depend on other targets in this package, and on products in packages this package depends on.
         .target(
-            name: "Semaphore",
-            swiftSettings: [
-                 // .unsafeFlags(["-Xfrontend", "-warn-concurrency", "-strict-concurrency=complete"]),
-            ]),
+            name: "Semaphore"),
         .testTarget(
             name: "SemaphoreTests",
             dependencies: ["Semaphore"]),
     ]
 )
+
+for target in package.targets {
+    var settings = target.swiftSettings ?? []
+    settings.append(contentsOf: [
+        // <https://github.com/apple/swift-evolution/blob/main/proposals/0337-support-incremental-migration-to-concurrency-checking.md>
+        .enableExperimentalFeature("StrictConcurrency"),
+    ])
+    target.swiftSettings = settings
+}
