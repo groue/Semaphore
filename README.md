@@ -2,7 +2,7 @@
 
 **A Synchronization Primitive for Swift Concurrency**
 
-**Requirements**: iOS 13.0+ / macOS 10.15+ / tvOS 13.0+ / watchOS 6.0+ • Swift 5.7+ / Xcode 14+
+**Requirements**: iOS 13.0+ / macOS 10.15+ / tvOS 13.0+ / watchOS 6.0+ • Swift 5.10+ / Xcode 15.3+
 
 📖 **[Documentation](https://swiftpackageindex.com/groue/Semaphore/documentation)**
 
