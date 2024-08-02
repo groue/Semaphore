@@ -1,4 +1,4 @@
-// swift-tools-version: 5.10
+// swift-tools-version: 6.0
 // The swift-tools-version declares the minimum version of Swift required to build this package.
 
 import PackageDescription
@@ -29,14 +29,6 @@ let package = Package(
         .testTarget(
             name: "SemaphoreTests",
             dependencies: ["Semaphore"]),
-    ]
+    ],
+    swiftLanguageVersions: [.v6]
 )
-
-for target in package.targets {
-    var settings = target.swiftSettings ?? []
-    settings.append(contentsOf: [
-        // <https://github.com/apple/swift-evolution/blob/main/proposals/0337-support-incremental-migration-to-concurrency-checking.md>
-        .enableExperimentalFeature("StrictConcurrency"),
-    ])
-    target.swiftSettings = settings
-}
